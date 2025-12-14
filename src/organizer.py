@@ -21,6 +21,10 @@ class Organizer:
     def organize(self, dirpath, files, metadata):
         logger.info(f"Organizing {metadata.title} by {metadata.author}")
         
+        dest_base, rel_path = self.calculate_destination(metadata)
+        staging_dir = os.path.join(config.OUTPUT_DIR, ".staging", rel_path)
+        
+    def calculate_destination(self, metadata):
         # 1. Determine Destination Path
         # Handle missing fields gracefully for template
         context = {
@@ -40,7 +44,7 @@ class Organizer:
         # For now, hardcoded structure: Author/Series/Book or Author/Book
         
         dest_base = os.path.join(config.OUTPUT_DIR, rel_path)
-        staging_dir = os.path.join(config.OUTPUT_DIR, ".staging", rel_path)
+        return dest_base, rel_path
         
         # 2. Create Staging Directory
         if config.DRY_RUN:

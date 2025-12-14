@@ -94,6 +94,18 @@ def update_metadata(item_id: str, updates: MetadataUpdate):
     queue_manager.update_item(item_id) # Signal update if needed (lock is already handled if we just modify object reference, but update_item is safer if we replace)
     return item.to_dict()
 
+@app.get("/api/queue/{item_id}/preview")
+def preview_item(item_id: str):
+    item = queue_manager.get_item(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    if not item.metadata:
+         raise HTTPException(status_code=400, detail="No metadata for item")
+
+    dest_base, _ = organizer.calculate_destination(item.metadata)
+    return {"destination": dest_base}
+
 @app.post("/api/queue/{item_id}/process")
 def process_item(item_id: str, background_tasks: BackgroundTasks):
     item = queue_manager.get_item(item_id)
