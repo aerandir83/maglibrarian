@@ -59,6 +59,26 @@ services:
 
 3. Drop an audiobook file or folder into `./input`. AutoLibrarian will process it and move it to `./library`.
 
+## Running Natively (Without Docker)
+
+1.  **Prerequisites**: Ensure you have Python 3 installed on your system.
+2.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/your-username/AutoLibrarian.git
+    cd AutoLibrarian
+    ```
+3.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **Configure**:
+    - Create a `.env` file by copying the example: `cp config.env.example .env`
+    - Edit the `.env` file to match your setup (e.g., `INPUT_DIR`, `OUTPUT_DIR`).
+5.  **Run the Application**:
+    ```bash
+    python src/main.py
+    ```
+
 ## License
 
 [MIT License](LICENSE)
