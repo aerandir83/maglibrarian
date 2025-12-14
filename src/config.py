@@ -23,5 +23,10 @@ class Config:
 
     # Metadata providers
     METADATA_PROVIDERS = os.getenv("METADATA_PROVIDERS", "openlibrary,googlebooks").split(",")
+    
+    # Web UI
+    WEB_UI_ENABLED = os.getenv("WEB_UI_ENABLED", "true").lower() == "true"
+    WEB_PORT = int(os.getenv("WEB_PORT", "3000"))
+    API_PORT = int(os.getenv("API_PORT", "8000"))
 
 config = Config()
