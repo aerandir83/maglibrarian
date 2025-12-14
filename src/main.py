@@ -63,11 +63,14 @@ class AutoLibrarian:
 
         logger.info(f"Starting Web UI (Vite) on port {config.WEB_PORT}...")
         try:
-            # We use shell=True for better compatibility with npm on Windows
+            # On Windows, shell=True is needed for npm (batch file).
+            # On Linux (Docker), shell=True with a list causes arguments to be lost (passed to shell not command).
+            use_shell = (os.name == 'nt')
+            
             self.frontend_process = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--port", str(config.WEB_PORT), "--host"],
+                ["npm", "run", "dev", "--", "--port", str(config.WEB_PORT), "--host", "0.0.0.0"],
                 cwd=ui_dir,
-                shell=True,
+                shell=use_shell,
                 stdout=subprocess.DEVNULL, # Keep console clean
                 stderr=subprocess.PIPE
             )
