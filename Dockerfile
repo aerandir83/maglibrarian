@@ -2,8 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (if any needed for mutagen or other libs)
-# RUN apt-get update && apt-get install -y ...
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    net-tools \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
