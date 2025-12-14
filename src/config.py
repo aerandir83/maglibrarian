@@ -18,6 +18,9 @@ class Config:
     PUID = int(os.getenv("PUID", "1000"))
     PGID = int(os.getenv("PGID", "1000"))
 
+    # Operations
+    DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
+
     # Metadata providers
     METADATA_PROVIDERS = os.getenv("METADATA_PROVIDERS", "openlibrary,googlebooks").split(",")
 

@@ -43,9 +43,12 @@ class Organizer:
         staging_dir = os.path.join(config.OUTPUT_DIR, ".staging", rel_path)
         
         # 2. Create Staging Directory
-        if os.path.exists(staging_dir):
-            shutil.rmtree(staging_dir)
-        os.makedirs(staging_dir)
+        if config.DRY_RUN:
+            logger.info(f"[DRY RUN] Would create staging directory: {staging_dir}")
+        else:
+            if os.path.exists(staging_dir):
+                shutil.rmtree(staging_dir)
+            os.makedirs(staging_dir)
         
         # 3. Copy/Move Files
         # We process files and rename them if needed
@@ -63,12 +66,18 @@ class Organizer:
             new_filename = f"{context['title']} - {i+1:02d}{ext}" if len(files) > 1 else f"{context['title']}{ext}"
             
             dest_file = os.path.join(staging_dir, new_filename)
-            shutil.copy2(filepath, dest_file)
+            if config.DRY_RUN:
+                logger.info(f"[DRY RUN] Would copy {filepath} to {dest_file}")
+            else:
+                shutil.copy2(filepath, dest_file)
             
             # Embed cover art if needed (TODO)
             
         # 4. Generate metadata.json
-        self.metadata_generator.generate_json(metadata, staging_dir)
+        if config.DRY_RUN:
+             logger.info(f"[DRY RUN] Would generate metadata.json in {staging_dir}")
+        else:
+             self.metadata_generator.generate_json(metadata, staging_dir)
         
         # 5. Download Cover Art
         if hasattr(metadata, 'cover_url') and metadata.cover_url:
@@ -91,35 +100,50 @@ class Organizer:
             pass
             
         # Ensure parent dirs exist
-        os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-        
-        # Rename staging to final
-        # If final exists, we might need to remove it first or use specific strategy
-        # Here we try to rename.
-        try:
-             if os.path.exists(final_dest):
-                 shutil.rmtree(final_dest) # Dangerous! But ensures clean state.
-             os.rename(staging_dir, final_dest)
-             logger.info(f"Successfully moved to {final_dest}")
+        if config.DRY_RUN:
+             logger.info(f"[DRY RUN] Would ensure parent directory exists: {os.path.dirname(final_dest)}")
+             logger.info(f"[DRY RUN] Would move {staging_dir} to {final_dest}")
              
-             # Cleanup source directory (the group directory in input)
-             # Be careful not to delete root input dir
+             # Cleanup source directory simulation
              if os.path.abspath(dirpath) != os.path.abspath(config.INPUT_DIR):
-                 shutil.rmtree(dirpath)
-                 logger.info(f"Removed source directory {dirpath}")
+                 logger.info(f"[DRY RUN] Would remove source directory {dirpath}")
              else:
-                 # If files were in root, we delete them?
-                 for f in files:
-                     if os.path.exists(f):
-                         os.remove(f)
-        except Exception as e:
-            logger.error(f"Failed to move to final destination: {e}")
+                 logger.info(f"[DRY RUN] Would remove source files in {dirpath}")
+        else:
+            os.makedirs(os.path.dirname(final_dest), exist_ok=True)
+            
+            # Rename staging to final
+            # If final exists, we might need to remove it first or use specific strategy
+            # Here we try to rename.
+            try:
+                 if os.path.exists(final_dest):
+                     shutil.rmtree(final_dest) # Dangerous! But ensures clean state.
+                 os.rename(staging_dir, final_dest)
+                 logger.info(f"Successfully moved to {final_dest}")
+                 
+                 # Cleanup source directory (the group directory in input)
+                 # Be careful not to delete root input dir
+                 if os.path.abspath(dirpath) != os.path.abspath(config.INPUT_DIR):
+                     shutil.rmtree(dirpath)
+                     logger.info(f"Removed source directory {dirpath}")
+                 else:
+                     # If files were in root, we delete them?
+                     for f in files:
+                         if os.path.exists(f):
+                             os.remove(f)
+            except Exception as e:
+                logger.error(f"Failed to move to final destination: {e}")
+
 
     def _sanitize(self, text):
         # Remove characters invalid in filenames
         return "".join(c for c in text if c.isalnum() or c in (' ', '-', '_', '.')).strip()
 
     def _download_cover(self, url, dest_dir):
+        if config.DRY_RUN:
+            logger.info(f"[DRY RUN] Would download cover from {url} to {dest_dir}")
+            return
+            
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
@@ -130,6 +154,10 @@ class Organizer:
             logger.error(f"Failed to download cover: {e}")
 
     def _apply_permissions(self, directory):
+        if config.DRY_RUN:
+            logger.info(f"[DRY RUN] Would apply permissions {config.PUID}:{config.PGID} to {directory}")
+            return
+
         uid = config.PUID
         gid = config.PGID
         logger.info(f"Applying permissions {uid}:{gid} to {directory}")
@@ -149,13 +177,23 @@ class Organizer:
 
     def move_to_manual(self, dirpath, files, metadata):
         manual_dir = os.path.join(config.OUTPUT_DIR, "Manual_Intervention")
-        if not os.path.exists(manual_dir):
-            os.makedirs(manual_dir)
+        if not config.DRY_RUN:
+            if not os.path.exists(manual_dir):
+                os.makedirs(manual_dir)
             
         # Move source folder to manual dir
         dest = os.path.join(manual_dir, os.path.basename(dirpath))
         
         logger.warning(f"Moving {dirpath} to {dest} for manual intervention")
+        
+        if config.DRY_RUN:
+            logger.info(f"[DRY RUN] Would move {dirpath} to {dest}")
+            if os.path.abspath(dirpath) == os.path.abspath(config.INPUT_DIR):
+                 logger.info(f"[DRY RUN] Would move individual files to {dest}")
+            # Simulate metadata generation in dry run
+            logger.info(f"[DRY RUN] Would generata metadata.json in {dest}")
+            return
+
         try:
              # Ideally we move the whole dir
              # If files are isolated, move files.
@@ -178,6 +216,10 @@ class Organizer:
             logger.error(f"Failed to move to manual intervention: {e}")
 
     def _write_tags(self, directory, metadata):
+        if config.DRY_RUN:
+             logger.info(f"[DRY RUN] Would write tags to files in {directory}")
+             return
+
         logger.info(f"Writing tags to files in {directory}")
         for root, dirs, files in os.walk(directory):
             for filename in files:

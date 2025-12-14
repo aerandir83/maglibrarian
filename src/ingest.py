@@ -74,6 +74,12 @@ class IngestionManager:
             parent_dir = os.path.dirname(filepath)
             dest_dir = os.path.join(parent_dir, base_name)
             
+            if config.DRY_RUN:
+                logger.info(f"[DRY RUN] Would create extraction directory: {dest_dir}")
+                logger.info(f"[DRY RUN] Would extract archive {filepath} to {dest_dir}")
+                logger.info(f"[DRY RUN] Would delete archive {filepath}")
+                return
+
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
             

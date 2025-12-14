@@ -97,5 +97,14 @@ class AutoLibrarian:
              logger.error(f"Failed to trigger ABS scan: {e}")
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="AutoLibrarian")
+    parser.add_argument("--dry-run", action="store_true", help="Run in dry mode without modifying files")
+    args = parser.parse_args()
+
+    if args.dry_run:
+        config.DRY_RUN = True
+        logger.info("Dry run mode enabled via CLI")
+
     app = AutoLibrarian()
     app.start()
