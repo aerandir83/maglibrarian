@@ -4,6 +4,7 @@ import sys
 import os
 import threading
 import uvicorn
+import subprocess
 
 # Add project root to sys.path to allow module execution from any CWD
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,9 +40,54 @@ class AutoLibrarian:
         
         # Monitor callback -> Ingestion Manager
         self.monitor = Monitor(config.INPUT_DIR, self.ingestion.process_file)
+        
+        self.frontend_process = None
 
     def start_api(self):
         uvicorn.run("src.web.api:app", host="0.0.0.0", port=config.API_PORT, log_level="info", reload=False)
+
+    def start_frontend(self):
+        ui_dir = os.path.join(project_root, "src", "web", "ui")
+        if not os.path.exists(ui_dir):
+            logger.warning(f"UI directory not found at {ui_dir}. Skipping Web UI startup.")
+            return
+
+        # Check for node_modules, install if missing
+        if not os.path.exists(os.path.join(ui_dir, "node_modules")):
+             logger.info("Installing Web UI dependencies (this may take a moment)...")
+             try:
+                subprocess.run(["npm", "install"], cwd=ui_dir, shell=True, check=True)
+             except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to install UI dependencies: {e}")
+                return
+
+        logger.info(f"Starting Web UI (Vite) on port {config.WEB_PORT}...")
+        try:
+            # We use shell=True for better compatibility with npm on Windows
+            self.frontend_process = subprocess.Popen(
+                ["npm", "run", "dev", "--", "--port", str(config.WEB_PORT), "--host"],
+                cwd=ui_dir,
+                shell=True,
+                stdout=subprocess.DEVNULL, # Keep console clean
+                stderr=subprocess.PIPE
+            )
+            logger.info(f"Web UI available at http://localhost:{config.WEB_PORT}")
+        except Exception as e:
+            logger.error(f"Failed to start Web UI: {e}")
+
+    def stop_frontend(self):
+        if self.frontend_process:
+            logger.info("Stopping Web UI...")
+            try:
+                # Use taskkill on Windows to ensure the tree is killed (npm spawns node)
+                if os.name == 'nt':
+                     subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.frontend_process.pid)], 
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    self.frontend_process.terminate()
+            except Exception as e:
+                logger.error(f"Error stopping Web UI: {e}")
+
 
     def start(self):
         logger.info("Starting AutoLibrarian...")
@@ -52,6 +98,7 @@ class AutoLibrarian:
             logger.info(f"Starting Web API on port {config.API_PORT}")
             api_thread = threading.Thread(target=self.start_api, daemon=True)
             api_thread.start()
+            self.start_frontend()
         
         self.monitor.start()
         
@@ -63,6 +110,7 @@ class AutoLibrarian:
         except KeyboardInterrupt:
             logger.info("Stopping...")
             self.monitor.stop()
+            self.stop_frontend()
 
     def process_book(self, dirpath, files):
         logger.info(f"Processing book group from {dirpath}")

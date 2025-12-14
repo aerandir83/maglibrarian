@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Book, RefreshCw, Check, X, Search, Settings } from 'lucide-react'
 import QueueItem from './components/QueueItem'
 
-const API_BASE = "http://localhost:8000/api"
+const API_BASE = "/api"
 
 export default function App() {
     const [items, setItems] = useState([])
