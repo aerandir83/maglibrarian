@@ -1,1 +1,64 @@
-# abs_organizer
+# AutoLibrarian
+
+**AutoLibrarian** is an automated audiobook organizer designed to work seamlessly with [Audiobookshelf](https://www.audiobookshelf.org/). It watches an input directory, identifies audiobooks, enriches metadata using external providers, and organizes them into a structured library.
+
+## Features
+
+- **Automated Monitoring**: Watches an input directory for new files.
+- **Smart Ingestion**:
+  - Automatically extracts `.zip`, `.tar`, and `.tar.gz` archives.
+  - Groups related files together.
+  - Waits for file transfers to complete before processing.
+- **Intelligent Identification**:
+  - Extracts metadata from embedded tags (ID3, MP4).
+  - Parses filenames and directory names.
+  - Merges data to get the best starting point.
+- **Metadata Enrichment**:
+  - Fetches details from **OpenLibrary** and **Google Books**.
+  - Retrieves Title, Author, Description, Year, ISBN, and Cover Art.
+- **Organization**:
+  - Moves files to a structured library: `Author/Series/Title` or `Author/Title`.
+  - Embeds correct tags into audio files.
+  - Generates `metadata.json` for Audiobookshelf.
+  - Downloads cover art.
+  - Handles manual intervention for low-confidence matches.
+- **Integration**:
+  - Triggers Audiobookshelf library scans upon completion.
+
+## Documentation
+
+- [Configuration](docs/configuration.md) - Environment variables and settings.
+- [Architecture](docs/architecture.md) - How it works under the hood.
+- [Deployment](docs/deployment.md) - Docker and installation guide.
+- [Contributing](CONTRIBUTING.md) - Development guide.
+
+## Quick Start (Docker)
+
+1. Create a `docker-compose.yml`:
+
+```yaml
+version: "3.8"
+services:
+  autolibrarian:
+    image: autolibrarian:latest
+    build: .
+    environment:
+      - INPUT_DIR=/input
+      - OUTPUT_DIR=/output
+      - ABS_URL=http://your-abs-instance:80
+      - ABS_API_KEY=your_api_key
+    volumes:
+      - ./input:/input
+      - ./library:/output
+```
+
+2. Run the container:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. Drop an audiobook file or folder into `./input`. AutoLibrarian will process it and move it to `./library`.
+
+## License
+
+[MIT License](LICENSE)
