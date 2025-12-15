@@ -81,11 +81,13 @@ class Organizer:
                      shutil.rmtree(final_dest) 
                  
                  os.rename(staging_dir, final_dest)
-                 logger.info(f"Successfully moved processed files to {final_dest}")
+                 logger.info(f"Successfully moved processed files from staging to {final_dest}")
                  
                  # 8. Cleanup Original Files (If Move Mode)
                  if mode == 'move':
                      self._cleanup_source(dirpath, files)
+                 else:
+                     logger.info(f"Original files preserved in {dirpath} (Copy Mode)")
                      
             except Exception as e:
                 logger.error(f"Failed to move to final destination: {e}")
