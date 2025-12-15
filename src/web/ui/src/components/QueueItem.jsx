@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Check, X, Search, Edit2, Play, Save, ChevronDown, ChevronUp } from 'lucide-react'
 
-const API_BASE = "http://localhost:8000/api"
+const API_BASE = "/api"
 
 export default function QueueItem({ item, onUpdate }) {
     const [expanded, setExpanded] = useState(false)
@@ -65,7 +65,10 @@ export default function QueueItem({ item, onUpdate }) {
             const data = await res.json()
             setSearchResults(data)
             setHasSearched(true)
-        } catch (e) { console.error(e) }
+        } catch (e) {
+            console.error(e)
+            alert("Search failed. Check console for details.")
+        }
         setSearching(false)
     }
 
@@ -84,10 +87,13 @@ export default function QueueItem({ item, onUpdate }) {
         setSearchResults([])
     }
 
-    // Sync formData with item.metadata when item changes
+    // Sync formData with item.metadata when item changes from parent poll
+    // BUT only if we are not currently editing or searching, otherwise we lose user input
     useEffect(() => {
-        setFormData(item.metadata || {})
-    }, [item])
+        if (!editing && !searching) {
+            setFormData(item.metadata || {})
+        }
+    }, [item, editing, searching])
 
     const saveUpdates = async (data = formData) => {
         console.log("Saving updates for item:", item.id, data)
@@ -101,12 +107,18 @@ export default function QueueItem({ item, onUpdate }) {
             if (!res.ok) {
                 const errText = await res.text()
                 console.error("Save failed:", errText)
+                alert(`Save failed: ${errText}`)
+                return // Don't close edit mode
             } else {
                 const updated = await res.json()
                 console.log("Save successful. New server state:", updated)
+                // Update local form data immediately with confirmed server state
+                setFormData(updated.metadata || {})
             }
         } catch (e) {
             console.error("Error during save:", e)
+            alert(`Error during save: ${e.message}`)
+            return // Don't close edit mode
         }
 
         if (onUpdate) onUpdate()
