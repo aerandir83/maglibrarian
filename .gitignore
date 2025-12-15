@@ -1,1 +1,18 @@
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment variables
 .env
+
+# Text editors/IDE
+.vscode/
+.idea/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

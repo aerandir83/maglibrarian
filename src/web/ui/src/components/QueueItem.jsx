@@ -41,9 +41,17 @@ export default function QueueItem({ item, onUpdate }) {
         onUpdate()
     }
 
+    const [hasSearched, setHasSearched] = useState(false)
+
     const handleSearch = async () => {
         setSearching(true)
-        const q = formData.title || item.dirpath.split('\\').pop()
+        setHasSearched(false)
+        // Handle both forward and back slashes for path splitting
+        const pathParts = item.dirpath.split(/[/\\]/)
+        let folderName = pathParts.pop()
+        if (!folderName && pathParts.length > 0) folderName = pathParts.pop() // Handle trailing slash
+
+        const q = formData.title || folderName
         try {
             const res = await fetch(`${API_BASE}/queue/${item.id}/search`, {
                 method: 'POST',
@@ -52,6 +60,7 @@ export default function QueueItem({ item, onUpdate }) {
             })
             const data = await res.json()
             setSearchResults(data)
+            setHasSearched(true)
         } catch (e) { console.error(e) }
         setSearching(false)
     }
@@ -171,6 +180,12 @@ export default function QueueItem({ item, onUpdate }) {
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {hasSearched && searchResults.length === 0 && (
+                        <div className="text-sm text-center p-2 text-muted animate-fade-in" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+                            No matches found. Try editing the title or author manually to improve search results.
                         </div>
                     )}
 
