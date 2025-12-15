@@ -18,35 +18,13 @@ class Organizer:
         self.dir_template = Template("{{ author }}/{{ series }}/{{ title }}") 
         # Default simple template if series missing: {{ author }}/{{ title }}
         
-    def organize(self, dirpath, files, metadata):
-        logger.info(f"Organizing {metadata.title} by {metadata.author}")
+    def organize(self, dirpath, files, metadata, mode="copy"):
+        logger.info(f"Organizing {metadata.title} by {metadata.author} (Mode: {mode})")
         
         dest_base, rel_path = self.calculate_destination(metadata)
         staging_dir = os.path.join(config.OUTPUT_DIR, ".staging", rel_path)
         
-    def calculate_destination(self, metadata):
-        # 1. Determine Destination Path
-        # Handle missing fields gracefully for template
-        context = {
-            "author": self._sanitize(metadata.author or "Unknown Author"),
-            "title": self._sanitize(metadata.title or "Unknown Title"),
-            "series": self._sanitize(metadata.series or ""),
-            "year": metadata.year or ""
-        }
-        
-        # Logic to choose template based on available data
-        if metadata.series:
-            rel_path = f"{context['author']}/{context['series']}/{context['title']}"
-        else:
-             rel_path = f"{context['author']}/{context['title']}"
-             
-        # Support user-defined template later?
-        # For now, hardcoded structure: Author/Series/Book or Author/Book
-        
-        dest_base = os.path.join(config.OUTPUT_DIR, rel_path)
-        return dest_base, rel_path
-        
-        # 2. Create Staging Directory
+        # 1. Create Staging Directory
         if config.DRY_RUN:
             logger.info(f"[DRY RUN] Would create staging directory: {staging_dir}")
         else:
@@ -54,19 +32,16 @@ class Organizer:
                 shutil.rmtree(staging_dir)
             os.makedirs(staging_dir)
         
-        # 3. Copy/Move Files
-        # We process files and rename them if needed
+        # 2. Copy/Process Files to Staging
+        context = {
+            "title": self._sanitize(metadata.title or "Unknown Title"),
+        }
+        
         for i, filepath in enumerate(sorted(files)):
             filename = os.path.basename(filepath)
             ext = os.path.splitext(filename)[1]
             
-            # Rename logic: 
-            # Single file: {Title}{ext}
-            # Multi file: {Title} - Part {i+1}{ext} ?
-            # BRD: {Series Sequence} - {Title} - Part {Track}.mp3
-            # Keeping it simple for now: preserve filename or minimal rename
-            
-            # Simple rename: Title - 01.mp3
+            # Simple rename: Title - 01.mp3 if multi-file, else Title.mp3
             new_filename = f"{context['title']} - {i+1:02d}{ext}" if len(files) > 1 else f"{context['title']}{ext}"
             
             dest_file = os.path.join(staging_dir, new_filename)
@@ -75,68 +50,68 @@ class Organizer:
             else:
                 shutil.copy2(filepath, dest_file)
             
-            # Embed cover art if needed (TODO)
-            
-        # 4. Generate metadata.json
+        # 3. Generate metadata.json
         if config.DRY_RUN:
              logger.info(f"[DRY RUN] Would generate metadata.json in {staging_dir}")
         else:
              self.metadata_generator.generate_json(metadata, staging_dir)
         
-        # 5. Download Cover Art
+        # 4. Download Cover Art
         if hasattr(metadata, 'cover_url') and metadata.cover_url:
             self._download_cover(metadata.cover_url, staging_dir)
             
-        # 6. Apply Permissions
+        # 5. Apply Permissions
         self._apply_permissions(staging_dir)
         
-        # 7. Write Tags (Requirement 5.2.1)
+        # 6. Write Tags
         self._write_tags(staging_dir, metadata)
 
-        # 8. Atomic Move to Final Destination
+        # 7. Move Staging to Final Destination
         final_dest = dest_base
-        if os.path.exists(final_dest):
-            logger.warning(f"Destination {final_dest} already exists. Overwriting/Merging.")
-            # Depending on policy, we might fail or merge. 
-            # For "Move", we typically want to replace or handle collision.
-            # shutil.move won't overwrite dir easily.
-            # Let's assume we can merge or we should rename if collision.
-            pass
-            
-        # Ensure parent dirs exist
+        
         if config.DRY_RUN:
-             logger.info(f"[DRY RUN] Would ensure parent directory exists: {os.path.dirname(final_dest)}")
              logger.info(f"[DRY RUN] Would move {staging_dir} to {final_dest}")
-             
-             # Cleanup source directory simulation
-             if os.path.abspath(dirpath) != os.path.abspath(config.INPUT_DIR):
-                 logger.info(f"[DRY RUN] Would remove source directory {dirpath}")
-             else:
-                 logger.info(f"[DRY RUN] Would remove source files in {dirpath}")
+             if mode == 'move':
+                 logger.info(f"[DRY RUN] Would remove original files from {dirpath}")
         else:
             os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-            
-            # Rename staging to final
-            # If final exists, we might need to remove it first or use specific strategy
-            # Here we try to rename.
             try:
                  if os.path.exists(final_dest):
-                     shutil.rmtree(final_dest) # Dangerous! But ensures clean state.
-                 os.rename(staging_dir, final_dest)
-                 logger.info(f"Successfully moved to {final_dest}")
+                     # If exists, we might overwrite or fail. For now, overwrite/merge strategy:
+                     # Remove existing partial match? Or just merge?
+                     # Safer to remove previous entry if it exists to avoid stale files
+                     shutil.rmtree(final_dest) 
                  
-                 # Cleanup source directory (the group directory in input)
-                 # Be careful not to delete root input dir
-                 if os.path.abspath(dirpath) != os.path.abspath(config.INPUT_DIR):
-                     shutil.rmtree(dirpath)
-                     logger.info(f"Removed source directory {dirpath}")
-                 else:
-                     # If files were in root, we delete them?
-                     for f in files:
-                         if os.path.exists(f):
-                             os.remove(f)
+                 os.rename(staging_dir, final_dest)
+                 logger.info(f"Successfully moved processed files to {final_dest}")
+                 
+                 # 8. Cleanup Original Files (If Move Mode)
+                 if mode == 'move':
+                     self._cleanup_source(dirpath, files)
+                     
             except Exception as e:
                 logger.error(f"Failed to move to final destination: {e}")
+                raise e # Re-raise to signal failure
+
+    def _cleanup_source(self, dirpath, files):
+        logger.info(f"Cleaning up source files in {dirpath}")
+        try:
+             # Delete the processed files
+             for f in files:
+                 if os.path.exists(f):
+                     os.remove(f)
+             
+             # Attempt to remove the directory if empty
+             # If dirpath differs from specific input root check? 
+             # We should only remove if it's a subdirectory of input, not input root itself.
+             if os.path.abspath(dirpath) != os.path.abspath(config.INPUT_DIR):
+                 try:
+                     os.rmdir(dirpath) # Only removes if empty
+                     logger.info(f"Removed empty source directory {dirpath}")
+                 except OSError:
+                     pass # Directory not empty
+        except Exception as e:
+            logger.warning(f"Failed to cleanup source: {e}")
 
 
     def _sanitize(self, text):

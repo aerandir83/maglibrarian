@@ -13,6 +13,7 @@ export default function QueueItem({ item, onUpdate }) {
 
     const [showConfirm, setShowConfirm] = useState(false)
     const [previewPath, setPreviewPath] = useState("")
+    const [processMode, setProcessMode] = useState('copy') // 'copy' or 'move'
 
     const handleProcessClick = async () => {
         setLoading(true)
@@ -30,7 +31,11 @@ export default function QueueItem({ item, onUpdate }) {
     const confirmProcess = async () => {
         setShowConfirm(false)
         setLoading(true)
-        await fetch(`${API_BASE}/queue/${item.id}/process`, { method: 'POST' })
+        await fetch(`${API_BASE}/queue/${item.id}/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: processMode })
+        })
         setLoading(false)
         onUpdate()
     }
@@ -145,9 +150,23 @@ export default function QueueItem({ item, onUpdate }) {
                     <div className="code-block text-xs mb-4" style={{ background: '#1e293b', padding: '0.5rem', borderRadius: 4, width: '100%', wordBreak: 'break-all' }}>
                         {previewPath}
                     </div>
+
+                    <div className="flex gap-4 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name={`mode-${item.id}`} value="copy" checked={processMode === 'copy'} onChange={(e) => setProcessMode(e.target.value)} />
+                            <span>Copy</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name={`mode-${item.id}`} value="move" checked={processMode === 'move'} onChange={(e) => setProcessMode(e.target.value)} />
+                            <span>Move</span>
+                        </label>
+                    </div>
+
                     <div className="flex gap-2">
                         <button className="btn btn-ghost" onClick={() => setShowConfirm(false)}>Cancel</button>
-                        <button className="btn btn-primary" onClick={confirmProcess}><Check size={16} /> Confirm & Process</button>
+                        <button className="btn btn-primary" onClick={confirmProcess}>
+                            <Check size={16} /> Confirm & {processMode === 'move' ? 'Move' : 'Copy'}
+                        </button>
                     </div>
                 </div>
             )}

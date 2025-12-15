@@ -127,8 +127,11 @@ def preview_item(item_id: str):
     dest_base, _ = organizer.calculate_destination(item.metadata)
     return {"destination": dest_base}
 
+class ProcessRequest(BaseModel):
+    mode: str = "copy"
+
 @app.post("/api/queue/{item_id}/process")
-def process_item(item_id: str, background_tasks: BackgroundTasks):
+def process_item(item_id: str, request: ProcessRequest, background_tasks: BackgroundTasks):
     item = queue_manager.get_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -139,17 +142,18 @@ def process_item(item_id: str, background_tasks: BackgroundTasks):
     # Set status to processing
     item.status = "processing"
     
-    background_tasks.add_task(run_organizer, item_id, item.dirpath, item.files, item.metadata)
-    return {"status": "started"}
+    background_tasks.add_task(run_organizer, item_id, item.dirpath, item.files, item.metadata, request.mode)
+    return {"status": "started", "mode": request.mode}
 
-def run_organizer(item_id, dirpath, files, metadata):
+def run_organizer(item_id, dirpath, files, metadata, mode="copy"):
     try:
-        organizer.organize(dirpath, files, metadata)
+        organizer.organize(dirpath, files, metadata, mode=mode)
         queue_manager.mark_processed(item_id)
         queue_manager.remove_item(item_id)
     except Exception as e:
         logger.error(f"Failed to organize {item_id}: {e}")
         queue_manager.update_item(item_id, status="error", error=str(e))
+
 
 @app.delete("/api/queue/{item_id}")
 def remove_item(item_id: str):
