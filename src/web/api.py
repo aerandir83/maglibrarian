@@ -104,11 +104,16 @@ def update_metadata(item_id: str, updates: MetadataUpdate):
     if not item.metadata:
         item.metadata = IdentificationResult()
         
+    logger.info(f"Received update request for {item_id}: {updates}")
     for k, v in updates.dict(exclude_unset=True).items():
+        logger.info(f"Updating {k} to {v}")
         setattr(item.metadata, k, v)
         
     queue_manager.update_item(item_id) # Signal update if needed (lock is already handled if we just modify object reference, but update_item is safer if we replace)
-    return item.to_dict()
+    
+    updated_item = item.to_dict()
+    logger.info(f"Updated item state: {updated_item['metadata']}")
+    return updated_item
 
 @app.get("/api/queue/{item_id}/preview")
 def preview_item(item_id: str):

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, X, Search, Edit2, Play, Save, ChevronDown, ChevronUp } from 'lucide-react'
 
 const API_BASE = "http://localhost:8000/api"
@@ -84,12 +84,31 @@ export default function QueueItem({ item, onUpdate }) {
         setSearchResults([])
     }
 
+    // Sync formData with item.metadata when item changes
+    useEffect(() => {
+        setFormData(item.metadata || {})
+    }, [item])
+
     const saveUpdates = async (data = formData) => {
-        await fetch(`${API_BASE}/queue/${item.id}/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
+        console.log("Saving updates for item:", item.id, data)
+        try {
+            const res = await fetch(`${API_BASE}/queue/${item.id}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+
+            if (!res.ok) {
+                const errText = await res.text()
+                console.error("Save failed:", errText)
+            } else {
+                const updated = await res.json()
+                console.log("Save successful. New server state:", updated)
+            }
+        } catch (e) {
+            console.error("Error during save:", e)
+        }
+
         if (onUpdate) onUpdate()
         setEditing(false)
     }
