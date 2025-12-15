@@ -101,8 +101,23 @@ class Monitor:
         logger.info(f"Starting monitor on {self.path}")
         if not os.path.exists(self.path):
             os.makedirs(self.path)
+            
+        # Scan for existing files
+        self.scan_existing_files()
+        
         self.observer.schedule(self.handler, self.path, recursive=True)
         self.observer.start()
+
+    def scan_existing_files(self):
+        logger.info(f"Scanning {self.path} for existing files...")
+        for root, dirs, files in os.walk(self.path):
+            for filename in files:
+                filepath = os.path.join(root, filename)
+                # Filter strictly by ignore/exclude logic if we had any,
+                # but StabilityChecker handles extensions.
+                if "__mac" in filepath or ".DS_Store" in filepath: # Basic junk filter
+                     continue
+                self.stability_checker.add_file(filepath)
 
     def stop(self):
         self.observer.stop()
