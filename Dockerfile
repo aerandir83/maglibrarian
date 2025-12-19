@@ -15,6 +15,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
 
+# Build Frontend
+WORKDIR /app/src/web/ui
+RUN npm install
+RUN npm run build
+
+WORKDIR /app
+
 ENV PYTHONPATH=/app
 ENV INPUT_DIR=/data/input
 ENV OUTPUT_DIR=/data/output
