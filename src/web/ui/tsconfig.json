@@ -8,9 +8,7 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "types": [
-      "vite/client"
-    ],
+    "types": [],
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",

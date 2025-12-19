@@ -4,22 +4,17 @@ import sys
 import os
 import threading
 import uvicorn
-import subprocess
+import json
+from concurrent.futures import ThreadPoolExecutor
 
-# Add project root to sys.path to allow module execution from any CWD
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 from src.config import config
 from src.monitor import Monitor
 from src.ingest import IngestionManager
 from src.identifier import Identifier, IdentificationResult
 from src.providers import MetadataAggregator
 from src.organizer import Organizer
-from src.queue_manager import queue_manager
+from src.dependencies import queue_manager
 from src.history import HistoryManager
-import json
 
 # Configure logging
 logging.basicConfig(
@@ -31,13 +26,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AutoLibrarian")
 
-from concurrent.futures import ThreadPoolExecutor
-
 class AutoLibrarian:
     def __init__(self):
         self.identifier = Identifier()
         self.aggregator = MetadataAggregator()
         self.organizer = Organizer()
+        # project_root assumption: parent of current_dir (src)
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.history = HistoryManager(os.path.join(project_root, "history.db"))
         self.executor = ThreadPoolExecutor(max_workers=config.MAX_WORKERS if hasattr(config, 'MAX_WORKERS') else 4)
         
@@ -51,7 +46,6 @@ class AutoLibrarian:
         queue_manager.register_status_callback("monitor", self.monitor.get_stats)
         queue_manager.register_status_callback("ingestion", self.ingestion.get_stats)
         
-        self.frontend_process = None
 
     def restore_queue(self):
         logger.info("Restoring pending items from history...")
@@ -64,10 +58,7 @@ class AutoLibrarian:
                 meta_json = json.loads(item['metadata']) if item['metadata'] else {}
                 
                 # Reconstruct Metadata Object
-                metadata = IdentificationResult()
-                # Safely update attributes
-                for k, v in meta_json.items():
-                    setattr(metadata, k, v)
+                metadata = IdentificationResult(**meta_json)
                 
                 # Add to queue without re-triggering history update
                 queue_manager.add_item(dirpath, files, metadata, from_history=True)
@@ -76,53 +67,8 @@ class AutoLibrarian:
                 logger.error(f"Failed to restore item {item.get('path')}: {e}")
 
     def start_api(self):
+        # Disable reload in production usually
         uvicorn.run("src.web.api:app", host="0.0.0.0", port=config.API_PORT, log_level="info", reload=False)
-
-    def start_frontend(self):
-        ui_dir = os.path.join(project_root, "src", "web", "ui")
-        if not os.path.exists(ui_dir):
-            logger.warning(f"UI directory not found at {ui_dir}. Skipping Web UI startup.")
-            return
-
-        # Check for node_modules, install if missing
-        if not os.path.exists(os.path.join(ui_dir, "node_modules")):
-             logger.info("Installing Web UI dependencies (this may take a moment)...")
-             try:
-                subprocess.run(["npm", "install"], cwd=ui_dir, shell=True, check=True)
-             except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to install UI dependencies: {e}")
-                return
-
-        logger.info(f"Starting Web UI (Vite) on port {config.WEB_PORT}...")
-        try:
-            # On Windows, shell=True is needed for npm (batch file).
-            # On Linux (Docker), shell=True with a list causes arguments to be lost (passed to shell not command).
-            use_shell = (os.name == 'nt')
-            
-            self.frontend_process = subprocess.Popen(
-                ["npm", "run", "dev", "--", "--port", str(config.WEB_PORT), "--host", "0.0.0.0"],
-                cwd=ui_dir,
-                shell=use_shell,
-                stdout=subprocess.DEVNULL, # Keep console clean
-                stderr=subprocess.PIPE
-            )
-            logger.info(f"Web UI available at http://localhost:{config.WEB_PORT}")
-        except Exception as e:
-            logger.error(f"Failed to start Web UI: {e}")
-
-    def stop_frontend(self):
-        if self.frontend_process:
-            logger.info("Stopping Web UI...")
-            try:
-                # Use taskkill on Windows to ensure the tree is killed (npm spawns node)
-                if os.name == 'nt':
-                     subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.frontend_process.pid)], 
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                else:
-                    self.frontend_process.terminate()
-            except Exception as e:
-                logger.error(f"Error stopping Web UI: {e}")
-
 
     def start(self):
         logger.info("Starting AutoLibrarian...")
@@ -135,7 +81,7 @@ class AutoLibrarian:
             logger.info(f"Starting Web API on port {config.API_PORT}")
             api_thread = threading.Thread(target=self.start_api, daemon=True)
             api_thread.start()
-            self.start_frontend()
+            # Frontend is now served as static files via FastAPI or external server
         
         self.monitor.start()
         
@@ -147,7 +93,6 @@ class AutoLibrarian:
         except KeyboardInterrupt:
             logger.info("Stopping...")
             self.monitor.stop()
-            self.stop_frontend()
             self.executor.shutdown(wait=False)
 
     def process_book(self, dirpath, files):

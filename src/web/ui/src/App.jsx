@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Book, RefreshCw, Check, X, Search, Settings } from 'lucide-react'
 import QueueItem from './components/QueueItem'
+import { Toaster, toast } from 'sonner'
 
 const API_BASE = "/api"
 
@@ -43,16 +44,19 @@ export default function App() {
 
     const handleRefresh = async () => {
         setRefreshing(true)
+        toast.info("Rescanning folder...")
         try {
             await fetch(`${API_BASE}/refresh`, { method: 'POST' })
             // Give it a moment to trigger scan
             setTimeout(() => {
                 fetchStatus()
                 setRefreshing(false)
+                toast.success("Scan started")
             }, 1000)
         } catch (e) {
             console.error(e)
             setRefreshing(false)
+            toast.error("Failed to trigger scan")
         }
     }
 
@@ -69,34 +73,35 @@ export default function App() {
     const pendingCount = (stats.tracked_files_count || 0) + (stats.grouping_files_count || 0)
 
     return (
-        <div className="container">
-            <header className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
-                <div className="flex items-center gap-2">
-                    <div style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+        <div className="max-w-6xl mx-auto p-8 w-full">
+            <Toaster position="top-right" theme="dark" />
+            <header className="flex justify-between items-center mb-8">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-sky-500 to-blue-500">
                         <Book color="white" size={24} />
                     </div>
                     <div>
-                        <h1 className="text-xl" style={{ margin: 0 }}>MagLibrarian</h1>
+                        <h1 className="text-xl font-bold m-0">MagLibrarian</h1>
                         <span className="text-sm text-muted">Auto-Organizer Dashboard</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {pendingCount > 0 && (
                         <div className="text-sm text-muted flex items-center gap-2 animate-pulse">
-                            <RefreshCw size={14} className="spin" />
+                            <RefreshCw size={14} className="animate-spin" />
                             <span>Processing {pendingCount} new files...</span>
                         </div>
                     )}
-                    <button className="btn btn-ghost" onClick={handleRefresh} disabled={refreshing}>
-                        <RefreshCw size={18} className={refreshing ? "spin" : ""} />
+                    <button className="btn hover:bg-white/5 text-muted hover:text-white" onClick={handleRefresh} disabled={refreshing}>
+                        <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
                         {refreshing ? "Scanning..." : "Rescan Folder"}
                     </button>
                 </div>
             </header>
 
             <main>
-                <div className="flex justify-between items-end" style={{ marginBottom: '1rem' }}>
-                    <h2 className="text-lg">Processing Queue ({items.length})</h2>
+                <div className="flex justify-between items-end mb-4">
+                    <h2 className="text-lg font-semibold">Processing Queue ({items.length})</h2>
                     <div className="text-sm text-muted">
                         {stats.tracked_files_count > 0 && <span className="mr-4">Stabilizing: {stats.tracked_files_count}</span>}
                         {stats.groups_count > 0 && <span>Grouping: {stats.groups_count}</span>}
@@ -104,20 +109,20 @@ export default function App() {
                 </div>
 
                 {error && (
-                    <div className="card text-red-400" style={{ border: '1px solid var(--danger)', marginBottom: '1rem' }}>
+                    <div className="bg-card border border-rose-900/50 text-red-400 p-6 rounded-xl shadow-sm mb-4">
                         {error}
                     </div>
                 )}
 
                 {loading ? (
-                    <div className="text-muted text-center" style={{ padding: '2rem' }}>Loading...</div>
+                    <div className="text-muted text-center p-8">Loading...</div>
                 ) : items.length === 0 ? (
-                    <div className="card text-center" style={{ padding: '3rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.05)', display: 'inline-flex', padding: '1rem', borderRadius: '50%', marginBottom: '1rem' }}>
-                            <Check size={32} color="var(--success)" />
+                    <div className="bg-card border border-border rounded-xl p-12 text-center shadow-sm">
+                        <div className="bg-white/5 inline-flex p-4 rounded-full mb-4">
+                            <Check size={32} className="text-green-500" />
                         </div>
-                        <p className="text-muted">All caught up! No items pending review.</p>
-                        <p className="text-xs text-muted" style={{ marginTop: '0.5rem' }}>
+                        <p className="text-muted text-lg">All caught up! No items pending review.</p>
+                        <p className="text-sm text-muted mt-2">
                             Any new books detected will appear here.
                         </p>
                     </div>

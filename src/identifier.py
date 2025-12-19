@@ -9,18 +9,28 @@ from mutagen.mp4 import MP4
 
 logger = logging.getLogger(__name__)
 
-class IdentificationResult:
-    def __init__(self):
-        self.title = None
-        self.author = None
-        self.year = None
-        self.series = None
-        self.series_part = None
-        self.narrator = None
-        self.asin = None
-        self.isbn = None
-        self.confidence = 0
-        self.source = "unknown" # 'tags', 'filename', 'api'
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class IdentificationResult(BaseModel):
+    title: Optional[str] = None
+    author: Optional[str] = None
+    year: Optional[str] = None
+    series: Optional[str] = None
+    series_part: Optional[str] = None
+    narrator: Optional[str] = None
+    asin: Optional[str] = None
+    isbn: Optional[str] = None
+    confidence: int = 0
+    source: str = "unknown" # 'tags', 'filename', 'api'
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    cover_url: Optional[str] = None
+    openlibrary_id: Optional[str] = None
+    album: Optional[str] = None
+
+    class Config:
+        extra = "allow"
 
     def __repr__(self):
         return f"<IdentificationResult title='{self.title}' author='{self.author}' asin='{self.asin}'>"

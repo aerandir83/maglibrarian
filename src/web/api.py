@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import logging
-from src.queue_manager import queue_manager
+import os
+from src.dependencies import queue_manager
 from src.providers import MetadataAggregator
 from src.organizer import Organizer
 from src.identifier import IdentificationResult
@@ -42,6 +44,7 @@ organizer = Organizer()
 
 @app.get("/api/queue")
 def get_queue():
+    # queue_manager.get_items() returns list of dicts now
     return queue_manager.get_items()
 
 @app.post("/api/refresh")
@@ -58,7 +61,7 @@ def get_item(item_id: str):
     item = queue_manager.get_item(item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    return item.to_dict()
+    return item.dict()
 
 @app.post("/api/queue/{item_id}/search")
 def search_metadata(item_id: str, query: SearchQuery):
@@ -72,7 +75,7 @@ def search_metadata(item_id: str, query: SearchQuery):
     if query.audible_id:
         res = aggregator.get_by_id("AudibleProvider", query.audible_id)
         if res:
-            results.append(res.__dict__)
+            results.append(res.dict())
 
     # Priority 2: Standard Search
     # Only search if we don't have a perfect ID match or if we want more options
@@ -88,7 +91,7 @@ def search_metadata(item_id: str, query: SearchQuery):
             for r in res:
                 # Avoid duplicates based on title/author/source if possible?
                 # or just append
-                results.append(r.__dict__)
+                results.append(r.dict())
         except Exception as e:
             logger.error(f"Provider error: {e}")
             
@@ -111,7 +114,7 @@ def update_metadata(item_id: str, updates: MetadataUpdate):
         
     queue_manager.update_item(item_id) # Signal update if needed (lock is already handled if we just modify object reference, but update_item is safer if we replace)
     
-    updated_item = item.to_dict()
+    updated_item = item.dict()
     logger.info(f"Updated item state: {updated_item['metadata']}")
     return updated_item
 
@@ -160,3 +163,11 @@ def remove_item(item_id: str):
     queue_manager.mark_ignored(item_id)
     queue_manager.remove_item(item_id)
     return {"status": "removed"}
+
+# Serve Static Files (Frontend)
+# Assumes build is in src/web/ui/dist
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "dist")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+else:
+    logger.warning(f"Static directory not found at {static_dir}. Frontend will not be served.")
