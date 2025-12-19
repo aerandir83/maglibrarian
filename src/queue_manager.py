@@ -1,22 +1,26 @@
 from typing import List, Dict, Optional
 import threading
+from pydantic import BaseModel, Field
 
-class QueueItem:
-    def __init__(self, dirpath: str, files: List[str], metadata=None, status="pending"):
-        self.id = str(hash(dirpath)) # Simple ID
-        self.dirpath = dirpath
-        self.files = files
-        self.metadata = metadata
-        self.status = status # pending, processing, approved, rejected, completed
+class QueueItem(BaseModel):
+    id: str
+    dirpath: str
+    files: List[str]
+    metadata: Optional[object] = None # Will hold IdentificationResult
+    status: str = "pending" # pending, processing, approved, rejected, completed
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @staticmethod
+    def create(dirpath: str, files: List[str], metadata=None, status="pending"):
+        item_id = str(hash(dirpath))
+        return QueueItem(id=item_id, dirpath=dirpath, files=files, metadata=metadata, status=status)
 
     def to_dict(self):
-        return {
-            "id": self.id,
-            "dirpath": self.dirpath,
-            "files": self.files,
-            "metadata": self.metadata.__dict__ if self.metadata else None,
-            "status": self.status
-        }
+        # Manual dict conversion specifically to handle metadata dictionary serialization if needed
+        # Or simple rely on .dict()
+        return self.dict()
 
 class QueueManager:
     def __init__(self):
@@ -49,7 +53,7 @@ class QueueManager:
     
     def add_item(self, dirpath: str, files: List[str], metadata=None, from_history=False) -> str:
         with self._lock:
-            item = QueueItem(dirpath, files, metadata)
+            item = QueueItem.create(dirpath, files, metadata)
             # Prevent duplicates if ID exists, but update if needed
             self._queue[item.id] = item
             
@@ -65,7 +69,9 @@ class QueueManager:
 
     def get_items(self) -> List[Dict]:
         with self._lock:
-            return [item.to_dict() for item in self._queue.values()]
+            # We used to do item.to_dict() which called metadata.__dict__
+            # QueueItem(BaseModel).dict() will recursively convert metadata if it's a Pydantic model
+            return [item.dict() for item in self._queue.values()]
 
     def get_item(self, item_id: str) -> Optional[QueueItem]:
         with self._lock:
@@ -107,11 +113,3 @@ class QueueManager:
             if item_id in self._queue:
                 item = self._queue[item_id]
                 del self._queue[item_id]
-                # Note: We do NOT remove from history here generally, 
-                # because removal from queue (e.g. completion) typically implies transition to 'processed'
-                # which is handled by AutoLibrarian.
-                # However, if user CANCELs/Deletes, we might want to state that.
-                # For now, we leave history management for terminal states to the caller,
-                # unless status was updated to 'rejected' before removal.
-
-queue_manager = QueueManager()

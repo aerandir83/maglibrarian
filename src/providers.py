@@ -56,8 +56,6 @@ class GoogleBooksProvider(MetadataProvider):
             q += f"+inauthor:{author}"
             
         params = {'q': q, 'maxResults': 5}
-        # if config.GOOGLE_BOOKS_API_KEY:
-        #    params['key'] = config.GOOGLE_BOOKS_API_KEY
             
         try:
             response = requests.get(base_url, params=params, timeout=10)
